@@ -49,10 +49,67 @@
 6. Inspection indexer (SPARQL queries to extract class/property/prefix metrics)
 
 ### Named Graph Convention
-- URI pattern: `urn:ontohub:{owner}:{repo}:{version}`
-- One named graph per ontology version; never overwrite — assign a new graph URI per Git tag
-- Use Graph Store HTTP `PUT` for initial named graph load
+
+Two categories of named graph, with different mutability rules:
+
+| Graph | URI pattern | Mutable? |
+|---|---|---|
+| Ontology version | `urn:ontohub:{owner}:{repo}:{version}` | No — written once on ingest |
+| Registry (operational) | `urn:ontohub:registry` | Yes — SPARQL UPDATE only |
+
+- Use Graph Store HTTP `PUT` for initial ontology graph load
 - Use Graph Store HTTP `DELETE` only on explicit retraction/re-ingestion, never on live data
+- Use `SPARQL UPDATE` (`INSERT DATA` / `DELETE DATA` / `DELETE…INSERT…WHERE`) for all registry graph mutations
+
+### Registry Graph (Operational Data)
+
+**Decision:** user accounts, registered repositories, webhook registrations, and ingestion events are all stored as RDF triples in the single mutable `urn:ontohub:registry` named graph. No separate relational database.
+
+**Vocabulary:**
+- `foaf:` — user identity (`foaf:Person`, `foaf:account`)
+- `dcterms:` — timestamps, identifiers (`dcterms:created`, `dcterms:identifier`)
+- `ontohub:` prefix: `https://ontohub.org/vocab#` — custom terms for registry concepts
+
+**Subject URI patterns:**
+```
+User:         urn:ontohub:user:{githubId}
+Registration: urn:ontohub:registration:{owner}:{repo}
+Event:        urn:ontohub:event:{uuid}
+```
+
+**Data model (Turtle):**
+```turtle
+# User
+<urn:ontohub:user:{githubId}>
+  a foaf:Person ;
+  foaf:account <https://github.com/{login}> ;
+  foaf:name "{displayName}" ;
+  dcterms:identifier "{githubId}" .
+
+# Registered repository
+<urn:ontohub:registration:{owner}:{repo}>
+  a ontohub:Registration ;
+  ontohub:registeredBy <urn:ontohub:user:{githubId}> ;
+  ontohub:githubRepo <https://github.com/{owner}/{repo}> ;
+  ontohub:webhookId "{githubWebhookId}" ;
+  ontohub:webhookSecretEnc "{aes256gcm-ciphertext}" ;
+  ontohub:status ontohub:Active ;
+  dcterms:created "{timestamp}"^^xsd:dateTime .
+
+# Ingestion event (event-sourced state)
+<urn:ontohub:event:{uuid}>
+  a ontohub:IngestionEvent ;
+  ontohub:registration <urn:ontohub:registration:{owner}:{repo}> ;
+  ontohub:gitRef "{tag-or-sha}" ;
+  ontohub:status ontohub:Queued ;   # → ontohub:Validating → ontohub:Loaded | ontohub:Failed
+  dcterms:created "{timestamp}"^^xsd:dateTime .
+```
+
+**Webhook secret security:**
+- The GitHub webhook HMAC secret MUST be retrievable to validate incoming requests — it cannot be one-way hashed
+- Store it AES-256-GCM encrypted as `ontohub:webhookSecretEnc`
+- The encryption key lives ONLY in the `WEBHOOK_ENCRYPTION_KEY` environment variable — never in the graph
+- Decrypt on demand in the webhook receiver; never log or return the plaintext secret
 
 ### Project Config
 
@@ -70,7 +127,9 @@
 - **SPARQL Client**: `sparql-http-client` for ALL GraphDB interactions (queries, updates, and Graph Store writes)
 - **RDF Library**: `graphy` or `n3` for JS-side parsing only
 - **Auth**: GitHub OAuth 2.0 via `passport-github2`
+- **Sessions**: `express-session` with in-memory store (development) — cookie name `ontohub_session`
 - **Webhook**: Express route with `x-hub-signature-256` HMAC validation
+- **Webhook secret storage**: AES-256-GCM encrypted literal in the registry graph; key from `WEBHOOK_ENCRYPTION_KEY` env var
 - **SHACL Validation**: `rdf-validate-shacl` (or equivalent) as a required ingestion gate
 - **Ontology Hub**: Browsing, mapping, and publishing existing OWL/RDF ontologies
 
