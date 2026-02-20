@@ -78,6 +78,27 @@
 - Ontology versions map 1:1 to Git tags and commit hashes
 - Named graph URI encodes version as the Git tag string (e.g., `v1.2.0`)
 
+### Frontend
+- **Framework**: Next.js App Router (TypeScript) — located in `/web`
+- **Styling**: Tailwind CSS + shadcn/ui (copy-paste components, not an npm dependency)
+- **Rendering strategy**:
+  - Public ontology pages: React Server Components + ISR (`revalidate = false` — versions are immutable once published)
+  - Auth-gated dashboard: Server Components with server-side session check
+  - Graph explorer / SPARQL editor: `"use client"` components only where interactivity is required
+- **Route groups**:
+  - `(public)` — DiscoveryContext: ontology browse, search, version pages
+  - `(dashboard)` — RegistryContext: register repo, manage webhooks (auth-gated)
+- **API calls**: Next.js frontend calls Express backend REST API only — no direct GraphDB access from the frontend
+- **Graph visualisation**: `react-force-graph` for class/property explorer (client component)
+- **SPARQL editor**: CodeMirror 6 with SPARQL language mode (client component)
+- **Key directories inside `/web`**:
+  - `app/` — Next.js App Router pages and layouts
+  - `components/ui/` — shadcn/ui primitives
+  - `components/ontology/` — domain-specific display components
+  - `components/layout/` — Header, Footer, Nav
+  - `lib/` — typed API client (`api.ts`), SPARQL type helpers (`sparql.ts`), auth utils (`auth.ts`)
+  - `types/` — shared TypeScript interfaces (e.g., `Ontology`, `OntologyVersion`)
+
 ### SPARQL Rules
 - Always use standard prefixes (rdf, rdfs, owl, skos, dcterms).
 - Return results in `application/sparql-results+json` format.
