@@ -155,6 +155,27 @@ Event:        urn:ontohub:event:{uuid}
 - Ontology versions map 1:1 to Git tags and commit hashes
 - Named graph URI encodes version as the Git tag string (e.g., `v1.2.0`)
 
+### Environment Variables
+
+See `.env.example` (backend) and `web/.env.example` (frontend) for full templates.
+
+| Variable | Where | Purpose |
+|---|---|---|
+| `PORT` | Backend | Express listen port (default `3001`) |
+| `NODE_ENV` | Backend | `development` / `production` |
+| `SESSION_SECRET` | Backend | `express-session` signing key |
+| `GRAPHDB_URL` | Backend | GraphDB base URL (default `http://localhost:7200`) |
+| `GRAPHDB_REPOSITORY` | Backend | GraphDB repository name (default `ontohub`) |
+| `GITHUB_CLIENT_ID` | Backend | GitHub OAuth App client ID |
+| `GITHUB_CLIENT_SECRET` | Backend | GitHub OAuth App client secret |
+| `GITHUB_CALLBACK_URL` | Backend | OAuth callback URL |
+| `WEBHOOK_ENCRYPTION_KEY` | Backend | AES-256-GCM key for per-repo webhook secrets |
+| `WEBHOOK_BASE_URL` | Backend | Publicly reachable Express URL (ngrok in local dev) |
+| `API_URL` | Frontend | Express base URL for server-side Next.js calls |
+| `NEXT_PUBLIC_API_URL` | Frontend | Express `/api/v1` URL for client-side calls |
+
+**Local dev note:** GitHub cannot POST webhooks to `localhost`. Use `npx ngrok http 3001` and set `WEBHOOK_BASE_URL` to the generated HTTPS URL.
+
 ### Frontend
 - **Framework**: Next.js App Router (TypeScript) — located in `/web`
 - **Styling**: Tailwind CSS + shadcn/ui (copy-paste components, not an npm dependency)
