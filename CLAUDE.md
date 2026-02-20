@@ -48,6 +48,24 @@
 5. Graph Store writer (`sparql-http-client`, SPARQL 1.1 Graph Store HTTP Protocol)
 6. Inspection indexer (SPARQL queries to extract class/property/prefix metrics)
 
+### Async Job Queue
+
+**Decision:** in-process async (no external queue dependency).
+
+**Pattern:**
+- Webhook receiver responds `202 Accepted` immediately after HMAC validation
+- Pipeline execution is fired as a non-blocking `Promise` (not awaited in the handler)
+- Ingestion event written to the registry graph before the pipeline starts (`ontohub:Queued`), updated on completion (`ontohub:Loaded`) or failure (`ontohub:Failed`) — this is the audit log and crash recovery indicator
+- If the Node process crashes mid-ingestion, the event remains in `ontohub:Queued` state permanently — operator can detect stale queued events and re-trigger manually
+
+**Rationale:** zero extra infrastructure (no Redis) for the current stage. Pipeline stages are already separate modules, so migrating to BullMQ later requires only wrapping the pipeline call in a queue worker — the stages themselves do not change.
+
+**Constraints:**
+- NEVER `await` the pipeline inside the webhook Express handler
+- ALWAYS write the `ontohub:IngestionEvent` with status `ontohub:Queued` before firing the pipeline
+- ALWAYS update event status to `ontohub:Loaded` or `ontohub:Failed` as the final pipeline step
+- Unhandled Promise rejections from the pipeline MUST be caught and logged + event status updated to `ontohub:Failed`
+
 ### Named Graph Convention
 
 Two categories of named graph, with different mutability rules:
